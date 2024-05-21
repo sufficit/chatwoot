@@ -69,13 +69,21 @@ RSpec.describe Inboxes::FetchImapEmailsJob do
       end
     end
 
-    context 'when IMAP connection errors out' do
-      it 'mark the connection for authorization required' do
-        allow(Imap::FetchEmailService).to receive(:new).with(channel: imap_email_channel, interval: 1).and_raise(Errno::ECONNREFUSED)
+    context 'when IMAP OAuth errors out' do
+      it 'marks the connection as requiring authorization' do
+        error_response = double
+        oauth_error = OAuth2::Error.new(error_response)
+
+        allow(Imap::MicrosoftFetchEmailService).to receive(:new)
+          .with(channel: microsoft_imap_email_channel, interval: 1)
+          .and_raise(oauth_error)
+
         allow(Redis::Alfred).to receive(:incr)
 
-        expect(Redis::Alfred).to receive(:incr).with("AUTHORIZATION_ERROR_COUNT:channel_email:#{imap_email_channel.id}")
-        described_class.perform_now(imap_email_channel)
+        expect(Redis::Alfred).to receive(:incr)
+          .with("AUTHORIZATION_ERROR_COUNT:channel_email:#{microsoft_imap_email_channel.id}")
+
+        described_class.perform_now(microsoft_imap_email_channel)
       end
     end
 
